@@ -24,6 +24,7 @@ public class ForgotPasswordEmail extends javax.swing.JFrame {
         initComponents();
         verifyPanel.setVisible(false);
         this.setSize(450, 220);
+        AppIcon.setAppIcon(this);
       
         //txtCode.setVisible(false);
         //btnVerify.setVisible(false);
@@ -77,6 +78,7 @@ public class ForgotPasswordEmail extends javax.swing.JFrame {
         txtCode = new javax.swing.JTextField();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setTitle("Reset Password");
 
         jLabel1.setFont(new java.awt.Font("Century Gothic", 0, 18)); // NOI18N
         jLabel1.setText("Ba't mo kasi kinalimutan ang iyong password");

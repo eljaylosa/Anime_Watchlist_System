@@ -18,6 +18,7 @@ public class SystemOverview extends javax.swing.JFrame {
     public SystemOverview() {
         initComponents();
         loadSystemOverview();
+        AppIcon.setAppIcon(this);
     }
 
      private void loadSystemOverview() {
@@ -85,6 +86,7 @@ public class SystemOverview extends javax.swing.JFrame {
         );
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setTitle("System Overview");
 
         jPanel1.setBorder(new javax.swing.border.SoftBevelBorder(javax.swing.border.BevelBorder.RAISED));
 

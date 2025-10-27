@@ -19,6 +19,7 @@ public class AdminMessages extends javax.swing.JFrame {
     public AdminMessages() {
         initComponents();
         loadMessages();
+        AppIcon.setAppIcon(this);
     }
     private void loadMessages() {
         try (Connection con = DBConnection.connect()) {
@@ -58,6 +59,7 @@ public class AdminMessages extends javax.swing.JFrame {
         jLabel1 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setTitle("Admin Messages");
 
         tblMessages.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {

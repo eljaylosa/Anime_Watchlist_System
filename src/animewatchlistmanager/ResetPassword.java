@@ -20,6 +20,7 @@ public class ResetPassword extends javax.swing.JFrame {
     public ResetPassword(String email) {
         initComponents();
         this.userEmail = email;
+        AppIcon.setAppIcon(this);
     }
     /*
     public static String hashPassword(String password) {
@@ -51,6 +52,7 @@ public class ResetPassword extends javax.swing.JFrame {
         jButton1 = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setTitle("Reset Password");
 
         txtNewPassword.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {

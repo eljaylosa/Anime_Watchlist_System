@@ -19,6 +19,7 @@ public class RegisterForm extends javax.swing.JFrame {
      */
     public RegisterForm() {
         initComponents();
+        AppIcon.setAppIcon(this);
     }
 
     /**
@@ -43,6 +44,7 @@ public class RegisterForm extends javax.swing.JFrame {
         txtUsername = new javax.swing.JTextField();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setTitle("Register Account");
 
         jLabel1.setFont(new java.awt.Font("Century Gothic", 1, 24)); // NOI18N
         jLabel1.setText("Register Account");

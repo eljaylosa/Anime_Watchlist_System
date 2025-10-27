@@ -21,6 +21,7 @@ public class ManageUsers extends javax.swing.JFrame {
     public ManageUsers() {
         initComponents();
         displayUsers();
+        AppIcon.setAppIcon(this);
     }
 
      private void displayUsers() {
@@ -63,6 +64,7 @@ public class ManageUsers extends javax.swing.JFrame {
         jButton2 = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setTitle("Manage Users");
 
         jLabel1.setFont(new java.awt.Font("Century Gothic", 1, 24)); // NOI18N
         jLabel1.setText("Manage Users");

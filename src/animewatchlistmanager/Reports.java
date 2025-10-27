@@ -20,6 +20,7 @@ public class Reports extends javax.swing.JFrame {
     public Reports() {
         initComponents();
         loadReports();
+        AppIcon.setAppIcon(this);
     }
     private void loadReports() {
         try (Connection con = DBConnection.connect()) {
@@ -93,6 +94,7 @@ public class Reports extends javax.swing.JFrame {
         jLabel2 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setTitle("Reports");
 
         jLabel1.setFont(new java.awt.Font("Century Gothic", 1, 24)); // NOI18N
         jLabel1.setText("Reports");

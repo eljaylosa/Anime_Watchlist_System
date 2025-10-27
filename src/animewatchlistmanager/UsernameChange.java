@@ -20,6 +20,7 @@ public class UsernameChange extends javax.swing.JFrame {
         initComponents();
         this.parentFrame = parentFrame;
         loadUsername();
+        AppIcon.setAppIcon(this);
         
     }
     
@@ -48,6 +49,7 @@ public class UsernameChange extends javax.swing.JFrame {
         txtCurrentUsername = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setTitle("Change Username");
 
         txtNewUsername.setFont(new java.awt.Font("Century Gothic", 0, 14)); // NOI18N
 

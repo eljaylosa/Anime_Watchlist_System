@@ -22,6 +22,7 @@ public class ContactAdmin extends javax.swing.JFrame {
      public ContactAdmin(String username) {
         initComponents();
         this.username = username;
+        AppIcon.setAppIcon(this);
     }
 
     /**
@@ -41,6 +42,7 @@ public class ContactAdmin extends javax.swing.JFrame {
         btnSend = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setTitle("Contact Admin");
 
         txtMessage.setColumns(20);
         txtMessage.setRows(5);

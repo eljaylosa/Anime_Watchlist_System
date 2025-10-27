@@ -19,6 +19,7 @@ public class AdminLogs extends javax.swing.JFrame {
     public AdminLogs() {
         initComponents();
         loadLogs();
+        AppIcon.setAppIcon(this);
     }
       private void loadLogs() {
         try (Connection con = DBConnection.connect()) {
@@ -57,6 +58,7 @@ public class AdminLogs extends javax.swing.JFrame {
         jButton1 = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setTitle("Activity Logs");
 
         tblLogs.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {

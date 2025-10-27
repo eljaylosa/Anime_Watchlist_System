@@ -20,6 +20,7 @@ public class Edit extends javax.swing.JFrame {
         initComponents();
         this.dashboard = dashboard;
         this.animeId = animeId;
+        AppIcon.setAppIcon(this);
         
          try {
             conn = DriverManager.getConnection("jdbc:mysql://localhost/anime_watchlist_db", "root", "");
@@ -57,6 +58,7 @@ public class Edit extends javax.swing.JFrame {
         jLabel4 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setTitle("Edit Anime");
 
         jLabel1.setFont(new java.awt.Font("Century Gothic", 1, 18)); // NOI18N
         jLabel1.setText("Edit anime");

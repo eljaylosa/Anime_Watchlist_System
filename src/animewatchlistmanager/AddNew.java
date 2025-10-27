@@ -22,6 +22,7 @@ public class AddNew extends javax.swing.JFrame {
         initComponents();
         this.userId = userId;
         this.dashboard = dashboard;
+        AppIcon.setAppIcon(this);
     }
 
 
@@ -48,6 +49,7 @@ public class AddNew extends javax.swing.JFrame {
         jLabel6 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setTitle("Add New Anime");
         addWindowListener(new java.awt.event.WindowAdapter() {
             public void windowClosed(java.awt.event.WindowEvent evt) {
                 formWindowClosed(evt);
