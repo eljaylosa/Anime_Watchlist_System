@@ -23,7 +23,52 @@ public class AddNew extends javax.swing.JFrame {
         this.userId = userId;
         this.dashboard = dashboard;
         AppIcon.setAppIcon(this);
+        txtRating.setEnabled(false);
+        txtRating.setText("0.0");
+        
+        cmbStatus.addActionListener(e -> {
+        String selectedStatus = cmbStatus.getSelectedItem().toString();
+
+    if (selectedStatus.equals("Completed")) {
+        txtRating.setEnabled(true);
+        txtRating.setText("");
+        txtRating.requestFocus();
+
+        String newRating = JOptionPane.showInputDialog(this, "Rate this anime (1–10):");
+
+        if (newRating != null && !newRating.trim().isEmpty()) {
+            try {
+                double newrating = Double.parseDouble(newRating.trim());
+                if (newrating > 10 || newrating < 0) {
+                    JOptionPane.showMessageDialog(this, "Rating must be between 0 and 10.", "Invalid Rating", JOptionPane.ERROR_MESSAGE);
+                    txtRating.setText("");
+                } else {
+                    txtRating.setText(String.valueOf(newrating));
+                }
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Please enter a valid number.", "Invalid Input", JOptionPane.ERROR_MESSAGE);
+                txtRating.setText("");
+            }
+        } else {
+            txtRating.setText("");
+        }
+    } 
+    else if (selectedStatus.equals("Watching") ||
+             selectedStatus.equals("On Hold") ||
+             selectedStatus.equals("Plan to Watch")) {
+        txtRating.setText("0.0");
+        txtRating.setEnabled(false);
+    } 
+    else if (selectedStatus.equals("Dropped")) {
+        txtRating.setText("0.0");
+        txtRating.setEnabled(false);
+        
     }
+});
+        
+        
+    }
+    
 
 
     /**

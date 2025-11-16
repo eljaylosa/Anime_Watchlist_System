@@ -21,6 +21,12 @@ public class Edit extends javax.swing.JFrame {
         this.dashboard = dashboard;
         this.animeId = animeId;
         AppIcon.setAppIcon(this);
+        txtRating.setEditable(false);
+        txtRating.setEnabled(false);
+        txtRating.setText("0.0");
+        txtTitle.setEditable(false);
+        txtGenre.setEditable(false);
+        txtEpisodes.setEditable(false);
         
          try {
             conn = DriverManager.getConnection("jdbc:mysql://localhost/anime_watchlist_db", "root", "");
@@ -33,6 +39,47 @@ public class Edit extends javax.swing.JFrame {
         txtEpisodes.setText(String.valueOf(episodes));
         cmbStatus.setSelectedItem(status);
         txtRating.setText(String.valueOf(rating));
+        
+        cmbStatus.addActionListener(e -> {
+        String selectedStatus = cmbStatus.getSelectedItem().toString();
+
+    if (selectedStatus.equals("Completed")) {
+        txtRating.setEnabled(true);
+        txtRating.setText("");
+        txtRating.requestFocus();
+
+        String newRating = JOptionPane.showInputDialog(this, "Rate this anime (1–10):");
+
+        if (newRating != null && !newRating.trim().isEmpty()) {
+            try {
+                double newrating = Double.parseDouble(newRating.trim());
+                if (newrating > 10 || newrating < 0) {
+                    JOptionPane.showMessageDialog(this, "Rating must be between 0 and 10.", "Invalid Rating", JOptionPane.ERROR_MESSAGE);
+                    txtRating.setText("0.0");
+                } else {
+                    txtRating.setText(String.valueOf(newrating));
+                }
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Please enter a valid number.", "Invalid Input", JOptionPane.ERROR_MESSAGE);
+                txtRating.setText("");
+            }
+        } else {
+            txtRating.setText("");
+        }
+    } 
+    else if (selectedStatus.equals("Watching") ||
+             selectedStatus.equals("On Hold") ||
+             selectedStatus.equals("Plan to Watch")) {
+        txtRating.setText("0.0");
+        txtRating.setEnabled(false);
+    } 
+    else if (selectedStatus.equals("Dropped")) {
+        txtRating.setText("0.0");
+        txtRating.setEnabled(false);
+        
+    }
+});
+
     }
 
     /**
@@ -177,28 +224,29 @@ public class Edit extends javax.swing.JFrame {
 
     private void btnUpdateActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnUpdateActionPerformed
         // TODO add your handling code here:
-        String title = txtTitle.getText();
-        String genre = txtGenre.getText();
-        int episodes = Integer.parseInt(txtEpisodes.getText());
-        String status = (String) cmbStatus.getSelectedItem();
-        double rating = Double.parseDouble(txtRating.getText());
-        
+         String status = (String) cmbStatus.getSelectedItem();
+        double rating;
+
         try {
-            String sql = "UPDATE watchlist SET title=?, genre=?, episodes=?, status=?, rating=? WHERE anime_id=?";
+            rating = Double.parseDouble(txtRating.getText());
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid rating (0–10).");
+            return;
+        }
+
+        try {
+            String sql = "UPDATE watchlist SET status=?, rating=? WHERE anime_id=?";
             PreparedStatement pst = conn.prepareStatement(sql);
-            pst.setString(1, title);
-            pst.setString(2, genre);
-            pst.setInt(3, episodes);
-            pst.setString(4, status);
-            pst.setDouble(5, rating);
-            pst.setInt(6, animeId);
+            pst.setString(1, status);
+            pst.setDouble(2, rating);
+            pst.setInt(3, animeId);
             pst.executeUpdate();
 
-            JOptionPane.showMessageDialog(this, "Anime updated successfully!");
-            dashboard.loadAnimeList(); // refresh table
-            this.dispose(); // close edit frame
+            JOptionPane.showMessageDialog(this, "Anime status and rating updated successfully!");
+            dashboard.loadAnimeList(); // refresh your table
+            this.dispose();
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, e);
+            JOptionPane.showMessageDialog(this, e.getMessage());
         }
     }//GEN-LAST:event_btnUpdateActionPerformed
 

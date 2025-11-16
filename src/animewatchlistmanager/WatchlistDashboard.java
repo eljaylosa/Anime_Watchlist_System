@@ -17,6 +17,13 @@ import javax.swing.JLabel;
 import javax.swing.JTable;
 import javax.swing.SwingConstants;
 import javax.swing.table.DefaultTableModel;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import animewatchlistmanager.AnimeAPI;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.net.URLEncoder;
+import java.util.List;
 /**
  *
  * @author ljlosa
@@ -27,12 +34,12 @@ public class WatchlistDashboard extends javax.swing.JFrame {
      * Creates new form WatchlistDashboard
      */
     
+   
     private int userId;
     String title = "SELECT INTO watchlist WHERE title";
     String username;
     public WatchlistDashboard(int userId, String username) {
         initComponents();
-        
         this.userId = userId;
         this.username = username;
         lblUsername.setText(username + "!");
@@ -44,65 +51,150 @@ public class WatchlistDashboard extends javax.swing.JFrame {
         lblLogo.setHorizontalAlignment(SwingConstants.CENTER);
         AppIcon.setAppIcon(this);
         
+        tblAnime.addMouseListener(new java.awt.event.MouseAdapter() {
+        @Override
+        public void mouseClicked(java.awt.event.MouseEvent evt) {
+            if (evt.getClickCount() == 2 && tblAnime.getSelectedRow() != -1) {
+                int selectedRow = tblAnime.getSelectedRow();
+
+                // 👇 Paste your existing logic here
+                int animeId = (int) tblAnime.getValueAt(selectedRow, 0);
+
+                try (Connection conn = DBConnection.connect()) {
+                    String sql = "SELECT local_file_path FROM anime_episodes WHERE anime_id = ? ORDER BY episode_number ASC LIMIT 1";
+                    PreparedStatement ps = conn.prepareStatement(sql);
+                    ps.setInt(1, animeId);
+                    ResultSet rs = ps.executeQuery();
+
+                    if (rs.next()) {
+                        String path = rs.getString("local_file_path");
+                        if (path == null || path.isEmpty()) {
+                            JOptionPane.showMessageDialog(null, "⚠️ No video file found for this anime!");
+                        } else {
+                            WatchAnimeFrame frame = new WatchAnimeFrame(animeId, userId);
+                            frame.setVisible(true);
+                        }
+                    } else {
+                        JOptionPane.showMessageDialog(null, "⚠️ No episodes found for this anime!");
+                    }
+
+                } catch (SQLException e) {
+                    JOptionPane.showMessageDialog(null, "Error: " + e.getMessage());
+                }
+            }
+        }
+    });
+   
+
     }
     public void updateUsernameLabel(String newUsername) {
     lblUsername.setText(newUsername);
     }
-    private void sortWatchlist(String criteria) {
+  private void sortWatchlist(String criteria) {
     String sql = "";
-    
+
     switch (criteria) {
         case "Date":
-            sql = "SELECT anime_id, title, genre, episodes, status, rating, date_added " +
-                  "FROM watchlist WHERE user_id = ? ORDER BY date_added DESC";
+            sql = "SELECT anime_id, title, genre, episodes, status, " +
+                  "CASE WHEN status = 'Completed' THEN rating ELSE 0.0 END AS rating, " +
+                  "image_url, link, date_added FROM watchlist WHERE user_id = ? ORDER BY date_added DESC";
             break;
         case "A-Z":
-            sql = "SELECT anime_id, title, genre, episodes, status, rating, date_added " +
-                  "FROM watchlist WHERE user_id = ? ORDER BY title ASC";
+            sql = "SELECT anime_id, title, genre, episodes, status, " +
+                  "CASE WHEN status = 'Completed' THEN rating ELSE 0.0 END AS rating, " +
+                  "image_url, link, date_added FROM watchlist WHERE user_id = ? ORDER BY title ASC";
             break;
         case "Most Episode":
-            sql = "SELECT anime_id, title, genre, episodes, status, rating, date_added " +
-                  "FROM watchlist WHERE user_id = ? ORDER BY episodes DESC";
+            sql = "SELECT anime_id, title, genre, episodes, status, " +
+                  "CASE WHEN status = 'Completed' THEN rating ELSE 0.0 END AS rating, " +
+                  "image_url, link, date_added FROM watchlist WHERE user_id = ? ORDER BY episodes DESC";
             break;
         case "Most Rating":
-            sql = "SELECT anime_id, title, genre, episodes, status, rating, date_added " +
-                  "FROM watchlist WHERE user_id = ? ORDER BY rating DESC";
+            sql = "SELECT anime_id, title, genre, episodes, status, " +
+                  "CASE WHEN status = 'Completed' THEN rating ELSE 0.0 END AS rating, " +
+                  "image_url, link, date_added FROM watchlist WHERE user_id = ? ORDER BY rating DESC";
             break;
         case "By Status":
-            sql = "SELECT anime_id, title, genre, episodes, status, rating, date_added " +
-                  "FROM watchlist WHERE user_id = ? " +
+            sql = "SELECT anime_id, title, genre, episodes, status, " +
+                  "CASE WHEN status = 'Completed' THEN rating ELSE 0.0 END AS rating, " +
+                  "image_url, link, date_added FROM watchlist WHERE user_id = ? " +
                   "ORDER BY FIELD(status, 'Watching', 'On Hold', 'Plan to Watch', 'Dropped', 'Completed')";
             break;
         default:
-            sql = "SELECT anime_id, title, genre, episodes, status, rating, date_added " +
-                  "FROM watchlist WHERE user_id = ?";
-            break;                
+            sql = "SELECT anime_id, title, genre, episodes, status, " +
+                  "CASE WHEN status = 'Completed' THEN rating ELSE 0.0 END AS rating, " +
+                  "image_url, link, date_added FROM watchlist WHERE user_id = ?";
+            break;
     }
 
-    try (Connection con = DBConnection.connect(); 
+    try (Connection con = DBConnection.connect();
          PreparedStatement pst = con.prepareStatement(sql)) {
-        
-        pst.setInt(1, userSession.currentUserId); // ✅ only fetch current user’s anime
-        
+
+        pst.setInt(1, userSession.currentUserId);
         ResultSet rs = pst.executeQuery();
-        DefaultTableModel model = (DefaultTableModel) tblAnime.getModel();
-        model.setRowCount(0);
-        
+
+        // ✅ Rebuild table model with image icons
+        DefaultTableModel model = new DefaultTableModel() {
+            @Override
+            public Class<?> getColumnClass(int column) {
+                if (column == 1) return ImageIcon.class; // column 1 = image
+                return Object.class;
+            }
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        // ✅ Table columns
+        model.addColumn("Anime ID");
+        model.addColumn("Poster");
+        model.addColumn("Title");
+        model.addColumn("Genre");
+        model.addColumn("Episodes");
+        model.addColumn("Status");
+        model.addColumn("Rating");
+        model.addColumn("Link"); // hidden later
+
+        // ✅ Fill table
         while (rs.next()) {
+            String imagePath = rs.getString("image_url");
+            ImageIcon icon = null;
+            if (imagePath != null && !imagePath.isEmpty()) {
+                ImageIcon originalIcon = new ImageIcon(imagePath);
+                Image img = originalIcon.getImage().getScaledInstance(80, 100, Image.SCALE_SMOOTH);
+                icon = new ImageIcon(img);
+            }
+
             model.addRow(new Object[]{
                 rs.getInt("anime_id"),
+                icon,
                 rs.getString("title"),
                 rs.getString("genre"),
                 rs.getInt("episodes"),
                 rs.getString("status"),
-                rs.getDouble("rating")
+                rs.getDouble("rating"),
+                rs.getString("link") // hidden later
             });
         }
-    } 
-    catch (Exception ex) {
+
+        tblAnime.setModel(model);
+
+        // ✅ Hide link column
+        tblAnime.getColumnModel().getColumn(7).setMinWidth(0);
+        tblAnime.getColumnModel().getColumn(7).setMaxWidth(0);
+        tblAnime.getColumnModel().getColumn(7).setWidth(0);
+
+        // ✅ Adjust image column size
+        tblAnime.setRowHeight(100);
+        tblAnime.getColumnModel().getColumn(1).setPreferredWidth(80);
+
+    } catch (Exception ex) {
         JOptionPane.showMessageDialog(null, "Error Sorting: " + ex.getMessage());
     }
 }
+
+
 
     /*
 Watching
@@ -111,113 +203,228 @@ On Hold
 Dropped
 Plan to Watch
     */
-    private void searchAnime(String keyword) {
+   private void searchAnime(String keyword) {
     try (Connection conn = DBConnection.connect()) {
-        String sql = "SELECT * FROM watchlist WHERE user_id = ? AND " + "(anime_id LIKE ? OR title LIKE ? OR genre LIKE ? OR episodes LIKE ? OR status LIKE ? OR rating LIKE ?)";
+        String sql = "SELECT anime_id, image_url, title, genre, episodes, status, rating " +
+                     "FROM watchlist WHERE user_id = ? AND " +
+                     "(CAST(anime_id AS CHAR) LIKE ? OR title LIKE ? OR genre LIKE ? OR " +
+                     "CAST(episodes AS CHAR) LIKE ? OR status LIKE ? OR CAST(rating AS CHAR) LIKE ?)";
         PreparedStatement pst = conn.prepareStatement(sql);
         pst.setInt(1, userSession.currentUserId);
-        pst.setString(2, "%" + keyword + "%");
-        pst.setString(3, "%" + keyword + "%");
-        pst.setString(4, "%" + keyword + "%");
-        pst.setString(5, "%" + keyword + "%");
-        pst.setString(6, "%" + keyword + "%");
-        pst.setString(7, "%" + keyword + "%");
-    
+        for (int i = 2; i <= 7; i++) {
+            pst.setString(i, "%" + keyword + "%");
+        }
+
         ResultSet rs = pst.executeQuery();
 
-        DefaultTableModel model = new DefaultTableModel();
-        model.addColumn("Anime ID");
-        model.addColumn("Title");
-        model.addColumn("Genre");
-        model.addColumn("Episodes");
-        model.addColumn("Status");
-        model.addColumn("Rating");
+        DefaultTableModel model = new DefaultTableModel(
+            new Object[]{"Anime ID", "Poster", "Title", "Genre", "Episodes", "Status", "Rating"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+
+            @Override
+            public Class<?> getColumnClass(int columnIndex) {
+                return (columnIndex == 1) ? ImageIcon.class : Object.class;
+            }
+        };
 
         while (rs.next()) {
+            String imageUrl = rs.getString("image_url");
+            String status = rs.getString("status");
+            double rating = rs.getDouble("rating");
+
+            if (!"Completed".equalsIgnoreCase(status)) {
+                rating = 0.0;
+            }
+
+            ImageIcon icon = null;
+            try {
+                if (imageUrl != null && !imageUrl.isEmpty()) {
+                    Image img;
+
+                    // ✅ Support for both URL and local file paths
+                    if (imageUrl.startsWith("http")) {
+                        img = new ImageIcon(new java.net.URL(imageUrl)).getImage();
+                    } else {
+                        img = new ImageIcon(imageUrl).getImage(); // local path
+                    }
+
+                    img = img.getScaledInstance(70, 100, Image.SCALE_SMOOTH);
+                    icon = new ImageIcon(img);
+                }
+            } catch (Exception e) {
+                // fallback image if URL or path is invalid
+                BufferedImage placeholder = new BufferedImage(70, 100, BufferedImage.TYPE_INT_RGB);
+                Graphics2D g2 = placeholder.createGraphics();
+                g2.setColor(Color.LIGHT_GRAY);
+                g2.fillRect(0, 0, 70, 100);
+                g2.setColor(Color.DARK_GRAY);
+                g2.drawString("No Img", 10, 50);
+                g2.dispose();
+                icon = new ImageIcon(placeholder);
+            }
+
             model.addRow(new Object[]{
                 rs.getInt("anime_id"),
+                icon,
                 rs.getString("title"),
                 rs.getString("genre"),
                 rs.getInt("episodes"),
-                rs.getString("status"),
-                rs.getInt("rating")
-               
+                status,
+                rating
             });
         }
 
+        tblAnime.setRowHeight(100);
         tblAnime.setModel(model);
 
     } catch (SQLException e) {
         JOptionPane.showMessageDialog(this, e.getMessage());
     }
 }
+
+
+
+
+
    
-    private void deleteSelectedAnime() {
-    int selectedRow = tblAnime.getSelectedRow(); // replace jTable1 with your table variable name
+   private void deleteSelectedAnime() {
+    int selectedRow = tblAnime.getSelectedRow(); // your table variable
     if (selectedRow == -1) {
         JOptionPane.showMessageDialog(null, "Please select an anime to delete.");
         return;
     }
 
-    int confirm = JOptionPane.showConfirmDialog(null, "Are you sure you want to delete this anime?", 
-                                                "Confirm Delete", JOptionPane.YES_NO_OPTION);
-    if (confirm != JOptionPane.YES_OPTION) {
-        ActivityLogger.log(userId, username, "Deleted anime: " + title);
+    // Safely get anime ID and title
+    Object idObj = tblAnime.getValueAt(selectedRow, 0);
+    Object titleObj = tblAnime.getValueAt(selectedRow, 1);
+
+    int animeId;
+    try {
+        animeId = Integer.parseInt(String.valueOf(idObj));
+    } catch (NumberFormatException e) {
+        JOptionPane.showMessageDialog(null, "Invalid anime ID.");
         return;
     }
 
-    // Get anime ID from table (assuming first column is the ID)
-    int animeId = (int) tblAnime.getValueAt(selectedRow, 0);
+    String title = (titleObj != null) ? titleObj.toString() : "Unknown Anime";
+
+    // ✅ Only a plain string message
+    int confirm = JOptionPane.showConfirmDialog(
+            null,
+            "Are you sure you want to delete this anime?",
+            "Confirm Delete",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.QUESTION_MESSAGE
+    );
+
+    if (confirm != JOptionPane.YES_OPTION) {
+        return; // user cancelled
+    }
 
     try (Connection conn = DBConnection.connect()) {
-        String sql = "DELETE FROM watchlist WHERE anime_id = ?";
+        // Only delete for the current logged-in user
+        String sql = "DELETE FROM watchlist WHERE anime_id = ? AND user_id = ?";
         PreparedStatement pst = conn.prepareStatement(sql);
         pst.setInt(1, animeId);
+        pst.setInt(2, userId);
+
         int rowsDeleted = pst.executeUpdate();
 
         if (rowsDeleted > 0) {
-            JOptionPane.showMessageDialog(null, "Anime deleted successfully!");
-            loadAnimeList(); // refresh table after delete
+            JOptionPane.showMessageDialog(null, "✅ Anime deleted successfully!");
+            loadAnimeList(); // refresh table
+
+            // Optional: log the deletion activity
+            ActivityLogger.log(userId, username, "Deleted anime from watchlist: " + title);
         } else {
-            JOptionPane.showMessageDialog(null, "Failed to delete anime.");
+            JOptionPane.showMessageDialog(null, "⚠️ Failed to delete anime. It may not exist in your watchlist.");
         }
-    } catch (Exception ex) {
-        JOptionPane.showMessageDialog(null, ex.getMessage());
+
+    } catch (SQLException ex) {
+        JOptionPane.showMessageDialog(null, "Error deleting anime: " + ex.getMessage());
     }
 }
+
+
+
     
-    public void loadAnimeList() {
+   public void loadAnimeList() {
     try (Connection conn = DBConnection.connect()) {
-        String sql = "SELECT * FROM watchlist WHERE user_id=?";
+        String sql = "SELECT anime_id, image_url, title, genre, episodes, status, " +
+                     "CASE WHEN status = 'Completed' THEN rating ELSE 0.0 END AS rating, " +
+                     "image_url, link " +
+                     "FROM watchlist WHERE user_id = ?";
         PreparedStatement pst = conn.prepareStatement(sql);
         pst.setInt(1, userId);
         ResultSet rs = pst.executeQuery();
 
-        DefaultTableModel model = new DefaultTableModel();
+        // Custom table model that allows image icons
+        DefaultTableModel model = new DefaultTableModel() {
+            @Override
+            public Class<?> getColumnClass(int column) {
+                if (column == 1) return ImageIcon.class; // column 1 = image
+                return Object.class;
+            }
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        // Add columns
         model.addColumn("Anime ID");
+        model.addColumn("Poster");
         model.addColumn("Title");
         model.addColumn("Genre");
         model.addColumn("Episodes");
         model.addColumn("Status");
         model.addColumn("Rating");
+        model.addColumn("Link"); // hidden later
 
+        // Populate rows
         while (rs.next()) {
+            String imagePath = rs.getString("image_url");
+            ImageIcon icon = null;
+            if (imagePath != null && !imagePath.isEmpty()) {
+                ImageIcon originalIcon = new ImageIcon(imagePath);
+                Image img = originalIcon.getImage().getScaledInstance(80, 100, Image.SCALE_SMOOTH);
+                icon = new ImageIcon(img);
+            }
+
             model.addRow(new Object[]{
                 rs.getInt("anime_id"),
+                icon,
                 rs.getString("title"),
                 rs.getString("genre"),
                 rs.getInt("episodes"),
                 rs.getString("status"),
-                rs.getDouble("rating")
+                rs.getDouble("rating"),
+                rs.getString("link") // keep this hidden
             });
         }
 
         tblAnime.setModel(model);
 
+        // Hide the link column
+        tblAnime.getColumnModel().getColumn(7).setMinWidth(0);
+        tblAnime.getColumnModel().getColumn(7).setMaxWidth(0);
+        tblAnime.getColumnModel().getColumn(7).setWidth(0);
+
+        // Adjust image column width
+        tblAnime.setRowHeight(100);
+        tblAnime.getColumnModel().getColumn(1).setPreferredWidth(80);
+
     } catch (SQLException e) {
-        JOptionPane.showMessageDialog(this, e.getMessage());
+        JOptionPane.showMessageDialog(this, "Error loading anime list: " + e.getMessage());
     }
-    }
+}
+
+
+
     
     
     private void displayProfilePic(String username) {
@@ -243,6 +450,7 @@ Plan to Watch
     }
 }
 
+    
 
     /**
      * This method is called from within the constructor to initialize the form.
@@ -259,15 +467,16 @@ Plan to Watch
         jScrollPane1 = new javax.swing.JScrollPane();
         tblAnime = new javax.swing.JTable();
         btnAdd = new javax.swing.JButton();
-        jButton1 = new javax.swing.JButton();
+        btnWatch = new javax.swing.JButton();
         txtSearch = new javax.swing.JTextField();
         jLabel3 = new javax.swing.JLabel();
         jLabel2 = new javax.swing.JLabel();
         sortCmb = new javax.swing.JComboBox<>();
         btnDelete = new javax.swing.JButton();
+        jButton1 = new javax.swing.JButton();
+        jButton3 = new javax.swing.JButton();
         jPanel2 = new javax.swing.JPanel();
         lblProfilePic = new javax.swing.JLabel();
-        txtAdmin = new javax.swing.JLabel();
         btnUpload = new javax.swing.JButton();
         jPanel3 = new javax.swing.JPanel();
         jLabel1 = new javax.swing.JLabel();
@@ -276,8 +485,10 @@ Plan to Watch
         lblLogo = new javax.swing.JLabel();
         jLabel4 = new javax.swing.JLabel();
         jLabel5 = new javax.swing.JLabel();
+        txtAdmin = new javax.swing.JLabel();
+        jButton2 = new javax.swing.JButton();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("Anime Dashboard");
         addWindowListener(new java.awt.event.WindowAdapter() {
             public void windowClosing(java.awt.event.WindowEvent evt) {
@@ -326,7 +537,7 @@ Plan to Watch
         jScrollPane1.setViewportView(tblAnime);
 
         btnAdd.setFont(new java.awt.Font("Century Gothic", 0, 14)); // NOI18N
-        btnAdd.setText("Add new");
+        btnAdd.setText("Anime library");
         btnAdd.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
         btnAdd.setFocusable(false);
         btnAdd.addActionListener(new java.awt.event.ActionListener() {
@@ -335,16 +546,21 @@ Plan to Watch
             }
         });
 
-        jButton1.setFont(new java.awt.Font("Century Gothic", 0, 14)); // NOI18N
-        jButton1.setText("Watch Now");
-        jButton1.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
-        jButton1.addActionListener(new java.awt.event.ActionListener() {
+        btnWatch.setFont(new java.awt.Font("Century Gothic", 0, 14)); // NOI18N
+        btnWatch.setText("Watch Now");
+        btnWatch.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+        btnWatch.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                jButton1ActionPerformed(evt);
+                btnWatchActionPerformed(evt);
             }
         });
 
         txtSearch.setFont(new java.awt.Font("Century Gothic", 0, 14)); // NOI18N
+        txtSearch.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                txtSearchActionPerformed(evt);
+            }
+        });
         txtSearch.addKeyListener(new java.awt.event.KeyAdapter() {
             public void keyReleased(java.awt.event.KeyEvent evt) {
                 txtSearchKeyReleased(evt);
@@ -377,6 +593,20 @@ Plan to Watch
             }
         });
 
+        jButton1.setText("Request Anime");
+        jButton1.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton1ActionPerformed(evt);
+            }
+        });
+
+        jButton3.setText("Back to Login");
+        jButton3.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton3ActionPerformed(evt);
+            }
+        });
+
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
@@ -384,25 +614,32 @@ Plan to Watch
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addComponent(jLabel3)
-                        .addGap(363, 363, 363)
-                        .addComponent(jLabel2)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(txtSearch, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(sortCmb, javax.swing.GroupLayout.PREFERRED_SIZE, 150, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(jButton1, javax.swing.GroupLayout.PREFERRED_SIZE, 123, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 1482, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
-                        .addGap(0, 0, Short.MAX_VALUE)
-                        .addComponent(btnAdd)
-                        .addGap(18, 18, 18)
-                        .addComponent(btnEdit)
-                        .addGap(18, 18, 18)
-                        .addComponent(btnDelete)
-                        .addGap(611, 611, 611)))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(jPanel1Layout.createSequentialGroup()
+                                .addComponent(jLabel3)
+                                .addGap(363, 363, 363)
+                                .addComponent(jLabel2)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(txtSearch, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(sortCmb, javax.swing.GroupLayout.PREFERRED_SIZE, 150, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                            .addGroup(jPanel1Layout.createSequentialGroup()
+                                .addComponent(jButton3)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addComponent(btnAdd)
+                                .addGap(18, 18, 18)
+                                .addComponent(btnEdit)
+                                .addGap(18, 18, 18)
+                                .addComponent(btnDelete)
+                                .addGap(518, 518, 518)))
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(btnWatch, javax.swing.GroupLayout.PREFERRED_SIZE, 123, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addGroup(jPanel1Layout.createSequentialGroup()
+                                .addGap(48, 48, 48)
+                                .addComponent(jButton1)))))
                 .addContainerGap(21, Short.MAX_VALUE))
         );
         jPanel1Layout.setVerticalGroup(
@@ -413,15 +650,17 @@ Plan to Watch
                     .addComponent(jLabel3)
                     .addComponent(txtSearch, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(jLabel2)
-                    .addComponent(sortCmb, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(sortCmb, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jButton1))
                 .addGap(10, 10, 10)
                 .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(18, 18, 18)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jButton1)
+                    .addComponent(btnWatch)
                     .addComponent(btnAdd)
                     .addComponent(btnEdit)
-                    .addComponent(btnDelete))
+                    .addComponent(btnDelete)
+                    .addComponent(jButton3))
                 .addContainerGap())
         );
 
@@ -429,21 +668,6 @@ Plan to Watch
 
         lblProfilePic.setMaximumSize(new java.awt.Dimension(100, 16));
         lblProfilePic.setPreferredSize(new java.awt.Dimension(120, 120));
-
-        txtAdmin.setFont(new java.awt.Font("Century Gothic", 3, 14)); // NOI18N
-        txtAdmin.setText("Contact Admin");
-        txtAdmin.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
-        txtAdmin.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseClicked(java.awt.event.MouseEvent evt) {
-                txtAdminMouseClicked(evt);
-            }
-            public void mouseEntered(java.awt.event.MouseEvent evt) {
-                txtAdminMouseEntered(evt);
-            }
-            public void mouseExited(java.awt.event.MouseEvent evt) {
-                txtAdminMouseExited(evt);
-            }
-        });
 
         btnUpload.setFont(new java.awt.Font("Century Gothic", 0, 12)); // NOI18N
         btnUpload.setText("Change Profile");
@@ -462,18 +686,13 @@ Plan to Watch
                 .addContainerGap(21, Short.MAX_VALUE)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addComponent(lblProfilePic, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(btnUpload, javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
-                        .addComponent(txtAdmin)
-                        .addGap(9, 9, 9)))
+                    .addComponent(btnUpload, javax.swing.GroupLayout.Alignment.TRAILING))
                 .addGap(17, 17, 17))
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel2Layout.createSequentialGroup()
-                .addContainerGap()
-                .addComponent(txtAdmin)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addGap(37, 37, 37)
                 .addComponent(lblProfilePic, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(btnUpload)
@@ -552,6 +771,28 @@ Plan to Watch
                 .addContainerGap())
         );
 
+        txtAdmin.setFont(new java.awt.Font("Century Gothic", 3, 14)); // NOI18N
+        txtAdmin.setText("Contact Admin");
+        txtAdmin.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+        txtAdmin.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                txtAdminMouseClicked(evt);
+            }
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                txtAdminMouseEntered(evt);
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                txtAdminMouseExited(evt);
+            }
+        });
+
+        jButton2.setText("Notifications");
+        jButton2.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton2ActionPerformed(evt);
+            }
+        });
+
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
@@ -561,29 +802,42 @@ Plan to Watch
                     .addGroup(layout.createSequentialGroup()
                         .addGap(16, 16, 16)
                         .addComponent(jPanel3, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addGap(204, 204, 204)
+                        .addGap(196, 196, 196)
                         .addComponent(jPanel4, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(jButton2)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addGroup(javax.swing.GroupLayout.Alignment.LEADING, layout.createSequentialGroup()
                         .addContainerGap()
                         .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)))
                 .addContainerGap(25, Short.MAX_VALUE))
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                .addGap(0, 0, Short.MAX_VALUE)
+                .addComponent(txtAdmin)
+                .addGap(54, 54, 54))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                        .addContainerGap()
+                        .addComponent(txtAdmin)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(jButton2))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                     .addGroup(layout.createSequentialGroup()
                         .addGap(25, 25, 25)
-                        .addComponent(jPanel3, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addGap(0, 0, Short.MAX_VALUE))
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
-                        .addContainerGap(27, Short.MAX_VALUE)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jPanel4, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))))
-                .addGap(18, 18, 18)
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jPanel4, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jPanel3, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addGap(0, 0, Short.MAX_VALUE)))))
                 .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addContainerGap())
         );
@@ -599,26 +853,39 @@ Plan to Watch
 
     private void btnAddActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnAddActionPerformed
         // TODO add your handling code here:
-        AddNew addFrame = new AddNew(this, userId);
-        addFrame.setVisible(true);
-        
+        //AddNew addFrame = new AddNew(this, userId);
+        //addFrame.setVisible(true);
+        new AnimeLibraryFrame(userId, this, false).setVisible(true);
+
+
     }//GEN-LAST:event_btnAddActionPerformed
 
     private void btnEditActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnEditActionPerformed
         // TODO add your handling code here:
-       int selectedRow = tblAnime.getSelectedRow();
-       if (selectedRow == -1) {
-        JOptionPane.showMessageDialog(this, "Please select a row to edit.");
-        return;
-    }
-       
-       int animeId = (int) tblAnime.getValueAt(selectedRow, 0); // ID column
-        String title = (String) tblAnime.getValueAt(selectedRow, 1);
-        String genre = (String) tblAnime.getValueAt(selectedRow, 2);
-        int episodes = (int) tblAnime.getValueAt(selectedRow, 3);
-        String status = (String) tblAnime.getValueAt(selectedRow, 4);
-        double rating = Double.parseDouble(tblAnime.getValueAt(selectedRow, 5).toString());
-       
+        int selectedRow = tblAnime.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(this, "Please select a row to edit.");
+            return;
+        }
+
+        int animeId = (int) tblAnime.getValueAt(selectedRow, 0);  // ✅ still ID
+        // skip the image column
+        String title = (String) tblAnime.getValueAt(selectedRow, 2);
+        String genre = (String) tblAnime.getValueAt(selectedRow, 3);
+        int episodes = Integer.parseInt(tblAnime.getValueAt(selectedRow, 4).toString());
+        String status = (String) tblAnime.getValueAt(selectedRow, 5);
+
+        // handle rating safely
+        Object ratingObj = tblAnime.getValueAt(selectedRow, 6);
+        double rating = 0.0;
+        if (ratingObj != null && !ratingObj.toString().trim().isEmpty()) {
+            try {
+                rating = Double.parseDouble(ratingObj.toString());
+            } catch (NumberFormatException e) {
+                rating = 0.0;
+            }
+        }
+
         Edit editFrame = new Edit(this, animeId, title, genre, episodes, status, rating);
         editFrame.setVisible(true);
     }//GEN-LAST:event_btnEditActionPerformed
@@ -685,26 +952,43 @@ Plan to Watch
         
     }//GEN-LAST:event_txtAdminMouseExited
 
-    private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
-        // TODO add your handling code here:
+    private void btnWatchActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnWatchActionPerformed
         int selectedRow = tblAnime.getSelectedRow();
         if (selectedRow == -1) {
-            JOptionPane.showMessageDialog(this, "Please select an anime first!");
+            JOptionPane.showMessageDialog(this, "Please select an anime to watch!");
             return;
-        
         }
-        String animeTitle = tblAnime.getValueAt(selectedRow, 1).toString();
-        try {
-            animeTitle = animeTitle.replace(" ", "+");
-            
-            String url = "https://9animetv.to/search?keyword=" + animeTitle;
 
-            java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
+        // Get the anime ID from the table (watchlist or library table)
+        int animeId = (int) tblAnime.getValueAt(selectedRow, 0);
+
+        try (Connection conn = DBConnection.connect()) {
+            // ✅ Get the first episode path from anime_episodes
+            String sql = "SELECT local_file_path FROM anime_episodes WHERE anime_id = ? ORDER BY episode_number ASC LIMIT 1";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, animeId);
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+                String path = rs.getString("local_file_path");
+                if (path == null || path.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "⚠️ No video file found for this anime!");
+                } else {
+                    // ✅ Open WatchAnimeFrame using animeId
+                    WatchAnimeFrame frame = new WatchAnimeFrame(animeId, userId);
+                    frame.setVisible(true);
+                }
+            } else {
+                JOptionPane.showMessageDialog(this, "⚠️ No episodes found for this anime!");
+            }
+
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
         }
-        catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error opening link: " + e.getMessage());
-        }
-    }//GEN-LAST:event_jButton1ActionPerformed
+
+
+
+    }//GEN-LAST:event_btnWatchActionPerformed
 
     private void lblUsernameMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_lblUsernameMouseClicked
         // TODO add your handling code here:
@@ -722,6 +1006,27 @@ Plan to Watch
         lblUsername.setForeground(Color.BLACK);
     }//GEN-LAST:event_lblUsernameMouseExited
 
+    private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
+        // TODO add your handling code here:
+        new AnimeRequestForm().setVisible(true);
+    }//GEN-LAST:event_jButton1ActionPerformed
+
+    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
+        // TODO add your handling code here:
+        int currentUserId = userSession.currentUserId;
+        new UserNotificationsFrame(currentUserId).setVisible(true);
+    }//GEN-LAST:event_jButton2ActionPerformed
+
+    private void txtSearchActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtSearchActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_txtSearchActionPerformed
+
+    private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton3ActionPerformed
+        // TODO add your handling code here:
+        new LoginForm().setVisible(true);
+        this.dispose();
+    }//GEN-LAST:event_jButton3ActionPerformed
+
     /**
      * @param args the command line arguments
      */
@@ -731,7 +1036,10 @@ Plan to Watch
     public javax.swing.JButton btnDelete;
     private javax.swing.JButton btnEdit;
     private javax.swing.JButton btnUpload;
+    private javax.swing.JButton btnWatch;
     private javax.swing.JButton jButton1;
+    private javax.swing.JButton jButton2;
+    private javax.swing.JButton jButton3;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;

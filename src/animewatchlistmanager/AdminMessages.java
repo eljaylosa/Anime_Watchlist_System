@@ -8,6 +8,7 @@ package animewatchlistmanager;
  *
  * @author ljlosa
  */
+import static animewatchlistmanager.userSession.currentUserId;
 import java.sql.*;
 import javax.swing.JOptionPane;
 import javax.swing.table.DefaultTableModel;
@@ -57,8 +58,9 @@ public class AdminMessages extends javax.swing.JFrame {
         tblMessages = new javax.swing.JTable();
         jButton1 = new javax.swing.JButton();
         jLabel1 = new javax.swing.JLabel();
+        btnClearMessages = new javax.swing.JButton();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("Admin Messages");
 
         tblMessages.setModel(new javax.swing.table.DefaultTableModel(
@@ -92,6 +94,13 @@ public class AdminMessages extends javax.swing.JFrame {
         jLabel1.setFont(new java.awt.Font("Century Gothic", 1, 24)); // NOI18N
         jLabel1.setText("Messages");
 
+        btnClearMessages.setText("Clear messages");
+        btnClearMessages.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnClearMessagesActionPerformed(evt);
+            }
+        });
+
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
@@ -103,12 +112,13 @@ public class AdminMessages extends javax.swing.JFrame {
                         .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 722, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addGroup(layout.createSequentialGroup()
                         .addGap(309, 309, 309)
-                        .addComponent(jLabel1)))
+                        .addComponent(jLabel1))
+                    .addGroup(layout.createSequentialGroup()
+                        .addGap(283, 283, 283)
+                        .addComponent(jButton1)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(btnClearMessages)))
                 .addContainerGap(15, Short.MAX_VALUE))
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
-                .addGap(0, 0, Short.MAX_VALUE)
-                .addComponent(jButton1)
-                .addGap(332, 332, 332))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -118,7 +128,9 @@ public class AdminMessages extends javax.swing.JFrame {
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 275, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jButton1)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jButton1)
+                    .addComponent(btnClearMessages))
                 .addContainerGap(15, Short.MAX_VALUE))
         );
 
@@ -131,12 +143,39 @@ public class AdminMessages extends javax.swing.JFrame {
         this.dispose();
     }//GEN-LAST:event_jButton1ActionPerformed
 
+    private void btnClearMessagesActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnClearMessagesActionPerformed
+        // TODO add your handling code here:
+         int confirm = JOptionPane.showConfirmDialog(this, 
+        "Are you sure you want to clear all messages?", 
+        "Confirm Clear", JOptionPane.YES_NO_OPTION);
+
+        if (confirm != JOptionPane.YES_OPTION) {
+            return; // User cancelled
+        }
+
+        try (Connection con = DBConnection.connect()) {
+            // Delete ALL messages
+            String sql = "DELETE FROM messages";
+            PreparedStatement pst = con.prepareStatement(sql);
+            int deleted = pst.executeUpdate();
+
+            // Refresh the table
+            loadMessages();
+
+            JOptionPane.showMessageDialog(this, "✅ Cleared " + deleted + " messages.");
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error clearing messages: " + e.getMessage());
+        }
+   
+    }//GEN-LAST:event_btnClearMessagesActionPerformed
+
     /**
      * @param args the command line arguments
      */
     
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton btnClearMessages;
     private javax.swing.JButton jButton1;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JScrollPane jScrollPane1;
